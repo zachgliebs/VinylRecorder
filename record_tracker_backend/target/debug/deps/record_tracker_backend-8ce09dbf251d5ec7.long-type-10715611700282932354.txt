@@ -1,0 +1,1 @@
+SelectStatement<FromClause<table>, diesel::query_builder::select_clause::SelectClause<(columns::id, columns::title, columns::artist, columns::cover_url, columns::created_at)>>
