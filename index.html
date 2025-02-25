@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Record Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center">My Record Collection</h1>
+
+        <!-- Now Playing Section -->
+        <div class="card text-center mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Now Playing</h5>
+                <img id="nowPlayingCover" src="default-cover.jpg" class="img-fluid" alt="Album Cover"
+                    style="max-height: 200px;">
+                <h4 id="nowPlayingTitle">No Record Playing</h4>
+                <p id="nowPlayingArtist">Select a record to play</p>
+            </div>
+        </div>
+
+        <!-- Add Album Button -->
+        <div class="text-end mb-3">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAlbumModal">Add to My
+                Collection</button>
+        </div>
+
+        <!-- Play History -->
+        <h3>Play History</h3>
+        <ul class="list-group" id="playHistoryList"></ul>
+
+        <!-- Add Album Modal -->
+        <div class="modal fade" id="addAlbumModal" tabindex="-1" aria-labelledby="addAlbumModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add New Album</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="addAlbumForm">
+                            <div class="mb-3">
+                                <label for="albumTitle" class="form-label">Album Title</label>
+                                <input type="text" class="form-control" id="albumTitle" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="artistName" class="form-label">Artist Name</label>
+                                <input type="text" class="form-control" id="artistName" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="albumCoverUrl" class="form-label">Album Cover URL (optional)</label>
+                                <input type="url" class="form-control" id="albumCoverUrl">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Add Album</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "https://script.google.com/macros/s/AKfycbyPC60Usm3_Gy9XuF2vI2noZNWo-_ofMO5Dvzeyihx-2egrnZYXf0wKkRYDzoaEevEFIQ/exec"; // Replace with your Apps Script URL
+
+        // Add Album to Collection
+        function addAlbum() {
+            let albumTitle = document.getElementById("albumTitle").value;
+            let artist = document.getElementById("artist").value;
+            let coverURL = `https://itunes.apple.com/search?term=${encodeURIComponent(albumTitle + ' ' + artist)}&entity=album`;
+
+            fetch(API_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "addAlbum", albumTitle, artist, coverURL }),
+                headers: { "Content-Type": "application/json" }
+            }).then(response => response.text()).then(alert);
+        }
+
+        // Log Album Play
+        function logPlay(albumTitle, artist) {
+            fetch(API_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "logPlay", albumTitle, artist }),
+                headers: { "Content-Type": "application/json" }
+            }).then(response => response.text()).then(alert);
+        }
+
+        // Get Leaderboard
+        function getLeaderboard() {
+            fetch(API_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "getLeaderboard" }),
+                headers: { "Content-Type": "application/json" }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("leaderboard").innerHTML = data.map(
+                        (row, index) => `<li>${index + 1}. ${row[0]} by ${row[1]} - ${row[3]} plays</li>`
+                    ).join("");
+                });
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const playHistory = [];
+            const playHistoryList = document.getElementById("playHistoryList");
+
+            document.getElementById("addAlbumForm").addEventListener("submit", async function (event) {
+                event.preventDefault();
+                const title = document.getElementById("albumTitle").value;
+                const artist = document.getElementById("artistName").value;
+                let coverUrl = document.getElementById("albumCoverUrl").value;
+
+                if (!coverUrl) {
+                    coverUrl = await fetchAlbumCover(title, artist) || 'default-cover.jpg';
+                }
+
+                addAlbumToCollection(title, artist, coverUrl);
+                this.reset();
+                bootstrap.Modal.getInstance(document.getElementById('addAlbumModal')).hide();
+            });
+
+            function addAlbumToCollection(title, artist, coverUrl) {
+                const newAlbum = { cover: coverUrl, album: title, artist: artist, timePlayed: "0h", lastPlayed: "Never" };
+                playHistory.unshift(newAlbum);
+                loadPlayHistory();
+            }
+
+            function loadPlayHistory() {
+                playHistoryList.innerHTML = "";
+                playHistory.slice(0, 10).forEach(album => {
+                    const item = document.createElement("li");
+                    item.classList.add("list-group-item", "d-flex", "align-items-center");
+                    item.innerHTML = `
+                        <img src="${album.cover}" class="me-3" alt="Album Cover" style="width: 50px; height: 50px;">
+                        <div>
+                            <strong>${album.album}</strong> by ${album.artist}<br>
+                            <small>Played: ${album.timePlayed} | Last Played: ${album.lastPlayed}</small>
+                        </div>
+                    `;
+                    item.addEventListener("click", function () {
+                        document.getElementById("nowPlayingCover").src = album.cover;
+                        document.getElementById("nowPlayingTitle").textContent = album.album;
+                        document.getElementById("nowPlayingArtist").textContent = album.artist;
+                    });
+                    playHistoryList.appendChild(item);
+                });
+            }
+
+            async function fetchAlbumCover(title, artist) {
+                try {
+                    const query = `${title} ${artist}`;
+                    const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=album&limit=1`);
+                    const data = await response.json();
+                    return data.results[0]?.artworkUrl100.replace('100x100', '600x600') || '';
+                } catch (error) {
+                    console.error("Error fetching album cover:", error);
+                    return '';
+                }
+            }
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

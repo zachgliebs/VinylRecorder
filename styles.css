@@ -1,0 +1,24 @@
+body {
+    background-color: #4c4c4c;
+}
+
+.album-cover {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.album-cover-lg {
+    max-width: 200px;
+}
+
+.log-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.list-group-item {
+    font-size: 1rem;
+    padding: 10px 15px;
+}
