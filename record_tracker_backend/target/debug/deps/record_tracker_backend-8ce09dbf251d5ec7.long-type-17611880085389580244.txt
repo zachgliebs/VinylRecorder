@@ -1,1 +1,0 @@
-SelectStatement<FromClause<table>, diesel::query_builder::select_clause::SelectClause<expression::select_by::SelectBy<Album, _>>>

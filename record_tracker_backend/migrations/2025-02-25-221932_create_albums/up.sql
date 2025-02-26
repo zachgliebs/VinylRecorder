@@ -1,7 +1,0 @@
-CREATE TABLE albums (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    artist TEXT NOT NULL,
-    cover_url TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
