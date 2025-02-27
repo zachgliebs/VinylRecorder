@@ -29,7 +29,8 @@ async fn main() {
 
     let app = Router::new()
         .route("/albums", post(add_album).get(get_albums))
-        .route("/albums/:album_id", delete(delete_album)) // Add DELETE route
+        .route("/albums/:album_id", delete(delete_album))
+        .route("/albums/barcode/:barcode", get(get_album_by_barcode)) // New route for fetching albums by barcode
         .route("/play_history/:album_id", get(get_play_history))
         .nest_service("/", ServeDir::new("src/static"))
         .with_state(app_state);
@@ -55,6 +56,7 @@ async fn create_schema(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
 			title TEXT NOT NULL,
 			artist TEXT NOT NULL,
 			cover_url TEXT DEFAULT 'default-cover.jpg',
+			barcode TEXT UNIQUE, -- Add barcode column
 			created_on DATETIME DEFAULT (datetime('now', 'localtime'))
 		);"
 	)
@@ -81,6 +83,7 @@ struct AddAlbumRequest {
     title: String,
     artist: String,
     cover_url: Option<String>,
+    barcode: Option<String>, // Add barcode field
 }
 
 #[derive(Serialize)]
@@ -98,11 +101,12 @@ async fn add_album(
     let cover_url = payload.cover_url.unwrap_or_else(|| "default-cover.jpg".to_string());
 
 	sqlx::query(
-		"INSERT INTO albums (title, artist, cover_url) VALUES (?1, ?2, ?3)"
+		"INSERT INTO albums (title, artist, cover_url, barcode) VALUES (?1, ?2, ?3, ?4)"
 	)
 	.bind(&payload.title)
 	.bind(&payload.artist)
 	.bind(&cover_url)
+	.bind(&payload.barcode) // Bind barcode value
 	.execute(&*state.pool)
 	.await
 	.map_err(|e| {
@@ -134,7 +138,6 @@ async fn get_albums(State(state): State<AppState>) -> Result<Json<Vec<AlbumRespo
 	return Ok(Json(albums));
 }
 
-// New function to delete an album by ID
 async fn delete_album(
     State(state): State<AppState>,
     Path(album_id): Path<i64>,
@@ -149,6 +152,33 @@ async fn delete_album(
         })?;
 
     Ok(StatusCode::NO_CONTENT) // Return 204 No Content on success
+}
+
+// New function to fetch an album by its barcode
+async fn get_album_by_barcode(
+    State(state): State<AppState>,
+    Path(barcode): Path<String>,
+) -> Result<Json<AlbumResponse>, StatusCode> {
+	let row = sqlx::query("SELECT album_id, title, artist, cover_url FROM albums WHERE barcode = ?1")
+	    .bind(barcode)
+	    .fetch_optional(&*state.pool)
+	    .await
+	    .map_err(|e| {
+	        eprintln!("Failed to fetch album by barcode: {}", e);
+	        StatusCode::INTERNAL_SERVER_ERROR
+	    })?;
+
+	if let Some(row) = row {
+	    let album = AlbumResponse {
+	        album_id: row.get("album_id"),
+	        title: row.get("title"),
+	        artist: row.get("artist"),
+	        cover_url: row.get::<Option<String>, _>("cover_url").unwrap_or_else(|| "default-cover.jpg".to_string()),
+	    };
+	    Ok(Json(album))
+	} else {
+	    Err(StatusCode::NOT_FOUND)
+	}
 }
 
 #[derive(Serialize)]
