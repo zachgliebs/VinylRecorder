@@ -1,14 +1,13 @@
 use axum::{
+    Router,
     extract::{Json, Path, State},
     http::StatusCode,
     routing::{delete, get, post},
-    Router,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{sqlite::SqlitePoolOptions, Pool, Row, Sqlite};
+use sqlx::{Pool, Row, Sqlite, sqlite::SqlitePoolOptions};
 use std::sync::Arc;
 use tower_http::services::ServeDir;
-use chrono::{NaiveDateTime, Duration};
 
 #[tokio::main]
 async fn main() {
@@ -26,7 +25,9 @@ async fn main() {
         return;
     }
 
-    let app_state = AppState { pool: Arc::new(pool) };
+    let app_state = AppState {
+        pool: Arc::new(pool),
+    };
 
     let app = Router::new()
         .route("/albums", post(add_album).get(get_albums))
@@ -50,7 +51,7 @@ struct AppState {
 
 async fn create_schema(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
     println!("Creating albums and play_history tables...");
-    
+
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS albums (
             album_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +60,7 @@ async fn create_schema(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
             cover_url TEXT DEFAULT 'default-cover.jpg',
             barcode TEXT UNIQUE,
             created_on DATETIME DEFAULT (datetime('now', 'localtime'))
-        );"
+        );",
     )
     .execute(pool)
     .await?;
@@ -68,10 +69,10 @@ async fn create_schema(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
         "CREATE TABLE IF NOT EXISTS play_history (
             play_id INTEGER PRIMARY KEY AUTOINCREMENT,
     		album_id INTEGER NOT NULL,
-    		played_on DATETIME DEFAULT (datetime('now', 'localtime')),
+    		played_on DATETIME DEFAULT NULL,
     		finished_on DATETIME DEFAULT NULL,
     		FOREIGN KEY (album_id) REFERENCES albums (album_id) ON DELETE CASCADE
-        );"
+        );",
     )
     .execute(pool)
     .await?;
@@ -100,44 +101,47 @@ async fn add_album(
     State(state): State<AppState>,
     Json(payload): Json<AddAlbumRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let cover_url = payload.cover_url.unwrap_or_else(|| "default-cover.jpg".to_string());
+    let cover_url = payload
+        .cover_url
+        .unwrap_or_else(|| "default-cover.jpg".to_string());
 
-	sqlx::query(
-		"INSERT INTO albums (title, artist, cover_url, barcode) VALUES (?1, ?2, ?3, ?4)"
-	)
-	.bind(&payload.title)
-	.bind(&payload.artist)
-	.bind(&cover_url)
-	.bind(&payload.barcode)
-	.execute(&*state.pool)
-	.await
-	.map_err(|e| {
-	    eprintln!("Failed to insert album: {}", e);
-	    StatusCode::INTERNAL_SERVER_ERROR
-	})?;
+    sqlx::query("INSERT INTO albums (title, artist, cover_url, barcode) VALUES (?1, ?2, ?3, ?4)")
+        .bind(&payload.title)
+        .bind(&payload.artist)
+        .bind(&cover_url)
+        .bind(&payload.barcode)
+        .execute(&*state.pool)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to insert album: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-	return Ok(StatusCode::CREATED);
+    return Ok(StatusCode::CREATED);
 }
 
 async fn get_albums(State(state): State<AppState>) -> Result<Json<Vec<AlbumResponse>>, StatusCode> {
-	let rows = sqlx::query("SELECT album_id, title, artist, cover_url FROM albums")
-	    .fetch_all(&*state.pool)
-	    .await
-	    .map_err(|e| {
-	        eprintln!("Failed to fetch albums: {}", e);
-	        StatusCode::INTERNAL_SERVER_ERROR
-	    })?;
+    let rows = sqlx::query("SELECT album_id, title, artist, cover_url FROM albums")
+        .fetch_all(&*state.pool)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to fetch albums: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-	let albums = rows.into_iter()
-	    .map(|row| AlbumResponse {
-	        album_id: row.get("album_id"),
-	        title: row.get("title"),
-	        artist: row.get("artist"),
-	        cover_url: row.get::<Option<String>, _>("cover_url").unwrap_or_else(|| "default-cover.jpg".to_string()),
-	    })
-	    .collect();
+    let albums = rows
+        .into_iter()
+        .map(|row| AlbumResponse {
+            album_id: row.get("album_id"),
+            title: row.get("title"),
+            artist: row.get("artist"),
+            cover_url: row
+                .get::<Option<String>, _>("cover_url")
+                .unwrap_or_else(|| "default-cover.jpg".to_string()),
+        })
+        .collect();
 
-	return Ok(Json(albums));
+    return Ok(Json(albums));
 }
 
 async fn delete_album(
@@ -160,6 +164,7 @@ async fn delete_album(
 struct LogPlayRequest {
     album_id: i64,
     finished_on: Option<String>, // Optional end time
+    played_on: Option<String>,   // Optional start time (new field)
 }
 
 #[derive(Serialize)]
@@ -173,30 +178,46 @@ struct PlayHistoryItem {
 }
 
 async fn log_play(
-	State(state): State<AppState>,
-	Json(payload): Json<LogPlayRequest>,
+    State(state): State<AppState>,
+    Json(payload): Json<LogPlayRequest>,
 ) -> Result<StatusCode, StatusCode> {
-	sqlx::query(
-		"INSERT INTO play_history (album_id, finished_on) VALUES (?1, ?2)"
-	)
-	.bind(payload.album_id)
-	.bind(payload.finished_on)
-	.execute(&*state.pool)
-	.await
-	.map_err(|e| {
-	    eprintln!("Failed to log play history: {}", e);
-	    StatusCode::INTERNAL_SERVER_ERROR
-	})?;
+    if let Some(finished_on) = payload.finished_on {
+        // Update finished_on for the currently playing album
+        sqlx::query(
+            "UPDATE play_history SET finished_on = ?1 WHERE album_id = ?2 AND finished_on IS NULL",
+        )
+        .bind(finished_on)
+        .bind(payload.album_id)
+        .execute(&*state.pool)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to update finished_on: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    } else {
+        // Insert a new play event with the current timestamp as played_on
+        sqlx::query("INSERT INTO play_history (album_id, played_on) VALUES (?1, ?2)")
+            .bind(payload.album_id)
+            .bind(chrono::Utc::now().to_rfc3339()) // Use current timestamp
+            .execute(&*state.pool)
+            .await
+            .map_err(|e| {
+                eprintln!("Failed to insert new play event: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+    }
 
-	return Ok(StatusCode::CREATED);
+    Ok(StatusCode::CREATED)
 }
 
-async fn get_all_play_history(State(state): State<AppState>) -> Result<Json<Vec<PlayHistoryItem>>, StatusCode> {
+async fn get_all_play_history(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<PlayHistoryItem>>, StatusCode> {
     let rows = sqlx::query(
         "SELECT ph.album_id, a.title, a.artist, a.cover_url, ph.played_on, ph.finished_on 
          FROM play_history ph 
          JOIN albums a ON ph.album_id = a.album_id 
-         ORDER BY ph.played_on DESC"
+         ORDER BY ph.played_on DESC",
     )
     .fetch_all(&*state.pool)
     .await
@@ -209,35 +230,63 @@ async fn get_all_play_history(State(state): State<AppState>) -> Result<Json<Vec<
         return Ok(Json(vec![])); // Return an empty array if no data exists
     }
 
-    let history = rows.into_iter().map(|row| {
-        let played_on: String = row.get("played_on");
-        let finished_on: Option<String> = row.get("finished_on");
+    let history = rows
+        .into_iter()
+        .map(|row| {
+            let played_on: String = row.get("played_on");
+            let finished_on: Option<String> = row.get("finished_on");
 
-        // Calculate duration if finished_on is present
-        let duration = if let Some(finished) = &finished_on {
-            let start = chrono::NaiveDateTime::parse_from_str(&played_on, "%Y-%m-%d %H:%M:%S").unwrap();
-            let end = chrono::NaiveDateTime::parse_from_str(finished, "%Y-%m-%d %H:%M:%S").unwrap();
-            let duration_secs = (end - start).num_seconds();
-            
-            Some(format!(
-                "{}hr, {}min, {}sec",
-                duration_secs / 3600,
-                (duration_secs % 3600) / 60,
-                duration_secs % 60
-            ))
-        } else {
-            None
-        };
+            // Parse played_on
+            let played_on_parsed = chrono::DateTime::parse_from_rfc3339(&played_on)
+                .map_err(|e| {
+                    eprintln!("Failed to parse played_on: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })
+                .ok();
 
-        PlayHistoryItem {
-            album_id: row.get("album_id"),
-            title: row.get("title"),
-            artist: row.get("artist"),
-            cover_url: row.get::<Option<String>, _>("cover_url").unwrap_or_else(|| "default-cover.jpg".to_string()),
-            played_on,
-            duration,
-        }
-    }).collect();
+            // Parse finished_on (if present)
+            let finished_on_parsed = if let Some(ref finished) = finished_on {
+                match chrono::DateTime::parse_from_rfc3339(finished) {
+                    Ok(parsed_date) => Some(parsed_date),
+                    Err(e) => {
+                        eprintln!("Failed to parse finished_on: {}", e);
+                        None // Handle invalid dates gracefully
+                    }
+                }
+            } else {
+                None
+            };
+
+            eprintln!("Raw played_on: {}", played_on);
+            if finished_on.is_some() {
+                eprintln!("Raw finished_on: {}", finished_on.clone().unwrap());
+            }
+
+            // Calculate duration if both timestamps are valid
+            let duration = if let (Some(start), Some(end)) = (played_on_parsed, finished_on_parsed) {
+                let duration_secs = (end - start).num_seconds();
+                format!(
+                    "{}hr, {}min, {}sec",
+                    duration_secs / 3600,
+                    (duration_secs % 3600) / 60,
+                    duration_secs % 60
+                )
+            } else if finished_on.is_none() {
+                "PRESENT".to_string() // If finished_on is null, mark as PRESENT
+            } else {
+                "Invalid duration".to_string() // Handle parsing errors
+            };
+
+            PlayHistoryItem {
+                album_id: row.get("album_id"),
+                title: row.get("title"),
+                artist: row.get("artist"),
+                cover_url: row.get::<Option<String>, _>("cover_url").unwrap_or_else(|| "default-cover.jpg".to_string()),
+                played_on,
+                duration: Some(duration),
+            }
+        })
+        .collect();
 
     Ok(Json(history))
 }

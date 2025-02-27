@@ -149,57 +149,13 @@
 
     <!-- Custom JavaScript -->
     <script>
-        const API_BASE_URL = "https://super-duper-invention-7vpvrvwqpg5xhrqwj-3000.app.github.dev"; // Replace with your backend URL
-    
-        // Fetch and display albums
-        async function loadAlbums() {
-            const response = await fetch(`${API_BASE_URL}/albums`);
-            const albums = await response.json();
-    
-            const albumList = document.getElementById("albumList");
-            albumList.innerHTML = ""; // Clear existing list
-    
-            albums.forEach(album => {
-                const item = document.createElement("li");
-                item.classList.add(
-                    'list-group-item',
-                    'd-flex',
-                    'align-items-center',
-                    'justify-content-between'
-                );
-    
-                item.innerHTML = `
-                    <div class='d-flex align-items-center'>
-                        <img src="${album.cover_url || 'default-cover.jpg'}"
-                            class='album-cover me-3' alt="${album.title}">
-                        <div>${album.title} by ${album.artist}</div> 
-                    </div> 
-                    <div> 
-                        <button class='btn btn-success btn-sm me-2'>Play</button> 
-                        <button class='btn btn-danger btn-sm'>Delete</button> 
-                    </div>`;
-                
-                item.querySelector('.btn-success').addEventListener('click', () => playAlbum(album));
-                
-                item.querySelector('.btn-danger').addEventListener('click', async () => {
-                    const response = await fetch(`${API_BASE_URL}/albums/${album.album_id}`, { method: 'DELETE' });
-                    
-                    if (response.ok) {
-                        loadAlbums(); // Reload albums after deletion
-                    } else {
-                        alert('Failed to delete album.');
-                    }
-                });
-    
-                albumList.appendChild(item);
-            });
-        }
-    
-        // Fetch and display play history (last 10 items)
-        async function loadPlayHistory() {
+       const API_BASE_URL = "https://super-duper-invention-7vpvrvwqpg5xhrqwj-3000.app.github.dev"; // Replace with your backend URL
+let currentPlayingAlbumId = null; // Track the currently playing album's ID
+
+async function loadPlayHistory() {
     try {
         const response = await fetch(`${API_BASE_URL}/play_history`);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -213,13 +169,24 @@
             const playedDate = new Date(history.played_on);
 
             // Format date as MM/DD/YY
-            const formattedDate = `${(playedDate.getMonth() + 1).toString().padStart(2, '0')}/${playedDate.getDate().toString().padStart(2, '0')}/${playedDate.getFullYear().toString().slice(-2)}`;
+            const formattedDate = `${(playedDate.getMonth() + 1)
+                .toString()
+                .padStart(2, '0')}/${playedDate
+                .getDate()
+                .toString()
+                .padStart(2, '0')}/${playedDate.getFullYear().toString().slice(-2)}`;
+
+            // Display duration or "PRESENT" if still playing
+            const durationText = history.duration || "PRESENT";
 
             const item = document.createElement("li");
             item.classList.add("list-group-item", "d-flex", "align-items-center");
 
             item.innerHTML = `
-                ${formattedDate} - ${history.duration || 'PLAY IN PROGRESS'} - ${history.title} by ${history.artist}
+                <img src="${history.cover_url}" class="me-3" style="width:50px;height:auto;" alt="${history.title}">
+                <div>
+                    ${formattedDate} - ${durationText} - ${history.title} by ${history.artist}
+                </div>
             `;
 
             playHistoryList.appendChild(item);
@@ -230,64 +197,119 @@
     }
 }
 
-        async function logPlayHistory(album) {
-            const startTime = new Date().toISOString();
-    
-            // Simulate an end time for demonstration purposes (e.g., after 1hr 31min 11sec)
-            const simulatedEndTime = new Date(Date.now() + (1 * 3600 + 31 * 60 + 11) * 1000).toISOString();
-    
-            await fetch(`${API_BASE_URL}/play_history`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ album_id: album.album_id, finished_on: simulatedEndTime }),
-            });
-    
-            loadPlayHistory();
-        }
-    
-        function playAlbum(album) {
-            document.getElementById("defaultNowPlaying").classList.add("d-none");
-    
-            document.getElementById("nowPlayingCover").src = album.cover_url || "default-cover.jpg";
-            document.getElementById("nowPlayingCover").classList.remove("d-none");
-    
-            document.getElementById("nowPlayingTitle").textContent = album.title;
-            document.getElementById("nowPlayingTitle").classList.remove("d-none");
-    
-            document.getElementById("nowPlayingArtist").textContent = album.artist;
-            document.getElementById("nowPlayingArtist").classList.remove("d-none");
-    
-            logPlayHistory(album);
-        }
-    
-        // Add a new album to the collection
-        document.getElementById('addAlbumForm').addEventListener('submit', async function (event) {
-            event.preventDefault();
-    
-            const title = document.getElementById('albumTitle').value.trim();
-            const artist = document.getElementById('artistName').value.trim();
-    
-            // Fetch album cover from iTunes API
-            const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(title + ' ' + artist)}&entity=album&limit=1`);
-            const data = await response.json();
-            const coverUrl = data.results[0]?.artworkUrl100.replace('100x100', '600x600') || 'default-cover.jpg';
-    
-            await fetch(`${API_BASE_URL}/albums`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, artist, cover_url: coverUrl })
-            });
-    
-            this.reset();
-            loadAlbums();
-            bootstrap.Modal.getInstance(document.getElementById('addAlbumModal')).hide();
+async function logPlayHistory(album) {
+    if (currentPlayingAlbumId !== null && currentPlayingAlbumId !== album.album_id) {
+        const finishedOn = new Date().toISOString();
+
+        await fetch(`${API_BASE_URL}/play_history`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ album_id: currentPlayingAlbumId, finished_on: finishedOn }),
         });
-    
-        // Load data on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            loadAlbums();       // Load albums from the database
-            loadPlayHistory();  // Load last 10 items from play history
+    }
+
+    await fetch(`${API_BASE_URL}/play_history`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ album_id: album.album_id }),
+    });
+
+    currentPlayingAlbumId = album.album_id;
+}
+
+
+function playAlbum(album) {
+    document.getElementById("defaultNowPlaying").classList.add("d-none");
+
+    document.getElementById("nowPlayingCover").src = album.cover_url || "default-cover.jpg";
+    document.getElementById("nowPlayingCover").classList.remove("d-none");
+
+    document.getElementById("nowPlayingTitle").textContent = album.title;
+    document.getElementById("nowPlayingTitle").classList.remove("d-none");
+
+    document.getElementById("nowPlayingArtist").textContent = album.artist;
+    document.getElementById("nowPlayingArtist").classList.remove("d-none");
+
+    logPlayHistory(album); // Log this album as playing
+}
+
+async function loadAlbums() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/albums`);
+        const albums = await response.json();
+
+        const albumList = document.getElementById("albumList");
+        albumList.innerHTML = ""; // Clear existing list
+
+        albums.forEach(album => {
+            const item = document.createElement("li");
+            item.classList.add(
+                'list-group-item',
+                'd-flex',
+                'align-items-center',
+                'justify-content-between'
+            );
+
+            item.innerHTML = `
+                <div class='d-flex align-items-center'>
+                    <img src="${album.cover_url || 'default-cover.jpg'}"
+                        class='album-cover me-3' alt="${album.title}">
+                    <div>${album.title} by ${album.artist}</div> 
+                </div> 
+                <div> 
+                    <button class='btn btn-success btn-sm me-2'>Play</button> 
+                    <button class='btn btn-danger btn-sm'>Delete</button> 
+                </div>`;
+            
+            item.querySelector('.btn-success').addEventListener('click', () => playAlbum(album));
+            
+            item.querySelector('.btn-danger').addEventListener('click', async () => {
+                const response = await fetch(`${API_BASE_URL}/albums/${album.album_id}`, { method: 'DELETE' });
+                
+                if (response.ok) {
+                    loadAlbums(); // Reload albums after deletion
+                } else {
+                    alert('Failed to delete album.');
+                }
+            });
+
+            albumList.appendChild(item);
         });
+    } catch (error) {
+        console.error("Failed to load albums:", error);
+        alert("An error occurred while loading albums.");
+    }
+}
+
+// Add a new album to the collection
+document.getElementById('addAlbumForm').addEventListener('submit', async function (event) {
+    event.preventDefault();
+
+    const title = document.getElementById('albumTitle').value.trim();
+    const artist = document.getElementById('artistName').value.trim();
+
+    // Fetch album cover from iTunes API
+    const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(title + ' ' + artist)}&entity=album&limit=1`);
+    const data = await response.json();
+    const coverUrl = data.results[0]?.artworkUrl100.replace('100x100', '600x600') || 'default-cover.jpg';
+
+    await fetch(`${API_BASE_URL}/albums`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, artist, cover_url: coverUrl })
+    });
+
+    this.reset();
+    loadAlbums();
+    bootstrap.Modal.getInstance(document.getElementById('addAlbumModal')).hide();
+});
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadAlbums();       // Load albums from the database
+    loadPlayHistory();  // Load last 10 items from play history
+});
+
     </script>
     
     
