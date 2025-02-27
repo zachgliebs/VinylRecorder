@@ -1,0 +1,11 @@
+C:\Users\zachg\VinylRecorder\recordTracker\target\debug\deps\libeither-8b86cd24e769ebee.rmeta: C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\lib.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\serde_untagged.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\serde_untagged_optional.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\iterator.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\into_either.rs
+
+C:\Users\zachg\VinylRecorder\recordTracker\target\debug\deps\libeither-8b86cd24e769ebee.rlib: C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\lib.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\serde_untagged.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\serde_untagged_optional.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\iterator.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\into_either.rs
+
+C:\Users\zachg\VinylRecorder\recordTracker\target\debug\deps\either-8b86cd24e769ebee.d: C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\lib.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\serde_untagged.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\serde_untagged_optional.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\iterator.rs C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\into_either.rs
+
+C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\lib.rs:
+C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\serde_untagged.rs:
+C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\serde_untagged_optional.rs:
+C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\iterator.rs:
+C:\Users\zachg\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\either-1.14.0\src\into_either.rs:

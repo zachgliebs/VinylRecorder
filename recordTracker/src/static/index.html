@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Record Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            overflow-x: hidden;
+        }
+
+        #sidebar {
+            width: 250px;
+            position: fixed;
+            top: 0;
+            left: -250px;
+            height: 100%;
+            z-index: 1000;
+            background-color: #343a40;
+            color: white;
+            transition: all 0.3s ease-in-out;
+        }
+
+        #sidebar.active {
+            left: 0;
+        }
+
+        #sidebar .nav-link {
+            color: white;
+        }
+
+        #sidebar .nav-link:hover {
+            background-color: #495057;
+        }
+
+        #main-content {
+            margin-left: 0;
+            transition: all 0.3s ease-in-out;
+        }
+
+        #main-content.active {
+            margin-left: 250px;
+        }
+
+        .album-cover {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+        }
+
+        .default-now-playing {
+            font-size: 1.5rem;
+            color: gray;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Side Navbar -->
+    <!-- <div id="sidebar">
+        <h4 class="text-center py-3">Menu</h4>
+        <ul class="nav flex-column px-3">
+            <li class="nav-item"><a href="#" class="nav-link" id="homeLink">Home</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" id="albumCollectionLink">Album Collection</a></li>
+        </ul>
+    </div> -->
+
+    <!-- Main Content -->
+    <div id="main-content" class="container-fluid vh-100 d-flex flex-column">
+        <!-- Navbar -->
+        <nav class="navbar navbar-dark bg-dark mb-4">
+            <!-- <button id="toggle-sidebar" class="btn btn-outline-light me-2">
+                <i class="fas fa-bars"></i>
+            </button> -->
+            <span class="navbar-brand mb-0 h1">Record Tracker</span>
+        </nav>
+
+        <!-- Home Page -->
+        <div id="homePage" class="flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+            <h1>Now Playing</h1>
+            <div id="nowPlayingCard" class="card text-center mb-4 w-75">
+                <div class="card-body">
+                    <!-- Default Now Playing Placeholder -->
+                    <div id="defaultNowPlaying" class="default-now-playing">No Record Playing</div>
+
+                    <!-- Album Details (Hidden by Default) -->
+                    <img id="nowPlayingCover" src="" class="img-fluid mb-3 d-none" alt="Album Cover"
+                        style="max-height: 300px;">
+                    <h4 id="nowPlayingTitle" class="d-none"></h4>
+                    <p id="nowPlayingArtist" class="d-none"></p>
+                </div>
+            </div>
+
+            <!-- Play History -->
+            <h3>Play History</h3>
+            <ul class="list-group w-75" id="playHistoryList"></ul>
+        </div>
+
+        <!-- Album Collection Page -->
+        <div id="albumCollectionPage" style="display: none;" class="flex-grow-1 d-flex flex-column align-items-center">
+            <h1>Album Collection</h1>
+
+            <!-- Add Album Button -->
+            <div class="text-end mb-3 w-75">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAlbumModal">Add Album</button>
+            </div>
+
+            <!-- Album List -->
+            <ul class="list-group w-75 mb-4" id="albumList"></ul>
+
+            <!-- Add Album Modal -->
+            <div class="modal fade" id="addAlbumModal" tabindex="-1" aria-labelledby="addAlbumModalLabel"
+                aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Add New Album</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="addAlbumForm">
+                                <div class="mb-3">
+                                    <label for="albumTitle" class="form-label">Album Title</label>
+                                    <input type="text" class="form-control" id="albumTitle" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="artistName" class="form-label">Artist Name</label>
+                                    <input type="text" class="form-control" id="artistName" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Add Album</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js'></script>
+
+    <!-- Font Awesome for Icons -->
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js'></script>
+
+    <!-- Custom JavaScript -->
+    <script>
+        const API_BASE_URL = "http://localhost:3000"; // Replace with your backend URL
+        loadAlbums();
+
+        // // Sidebar Toggle
+        // document.getElementById("toggle-sidebar").addEventListener("click", function () {
+        //     const sidebar = document.getElementById("sidebar");
+        //     const mainContent = document.getElementById("main-content");
+
+        //     sidebar.classList.toggle("active");
+        //     mainContent.classList.toggle("active");
+        // });
+
+        // // Page Navigation
+        // document.getElementById("homeLink").addEventListener("click", () => showPage("homePage"));
+        // document.getElementById("albumCollectionLink").addEventListener("click", () => {
+		// 	showPage("albumCollectionPage");
+		// 	loadAlbums();
+		// });
+
+		// function showPage(pageId) {
+		// 	document.getElementById("homePage").style.display = pageId === "homePage" ? "block" : "none";
+		// 	document.getElementById("albumCollectionPage").style.display = pageId === "albumCollectionPage"
+		// 		? "block"
+		// 		: "none";
+		// }
+
+		// Fetch and display albums
+		async function loadAlbums() {
+			const response = await fetch(`${API_BASE_URL}/albums`);
+			const albums = await response.json();
+
+			const albumList = document.getElementById("albumList");
+			albumList.innerHTML = ""; // Clear existing list
+
+			albums.forEach(album => {
+				const item = document.createElement("li");
+				item.classList.add(
+					'list-group-item',
+					'd-flex',
+					'align-items-center',
+					'justify-content-between'
+				);
+
+				item.innerHTML = `
+					<div class='d-flex align-items-center'>
+						<img src="${album.cover_url || 'default-cover.jpg'}"
+							class='album-cover me-3' alt="${album.title}">
+						<div>${album.title} by ${album.artist}</div> 
+					</div> 
+					<div> 
+						<button	class='btn btn-success btn-sm me-2'>Load</button> 
+						<button	class='btn btn-danger btn-sm'>Delete</button> 
+					</div>`;
+				
+				item.querySelector('.btn-success').addEventListener('click', () => playAlbum(album));
+				
+				item.querySelector('.btn-danger').addEventListener('click', async () => {
+					const response = await fetch(`${API_BASE_URL}/albums/${album.album_id}`, { method: 'DELETE' });
+					
+					if (response.ok) {
+						loadAlbums(); // Reload albums after deletion
+					} else {
+						alert('Failed to delete album.');
+					}
+				});
+
+				albumList.appendChild(item);
+			});
+		}
+
+		document.getElementById('addAlbumForm').addEventListener('submit', async function (event) {
+			event.preventDefault();
+
+			const title = document.getElementById('albumTitle').value.trim();
+			const artist = document.getElementById('artistName').value.trim();
+
+			const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(title + ' ' + artist)}&entity=album&limit=1`);
+			const data = await response.json();
+			const coverUrl = data.results[0]?.artworkUrl100.replace('100x100', '600x600') || 'default-cover.jpg';
+
+			await fetch(`${API_BASE_URL}/albums`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ title, artist, cover_url: coverUrl })
+			});
+
+			this.reset();
+			loadAlbums();
+			bootstrap.Modal.getInstance(document.getElementById('addAlbumModal')).hide();
+		});
+
+		function playAlbum(album) {
+			document.getElementById('defaultNowPlaying').classList.add('d-none');
+			
+			document.getElementById('nowPlayingCover').src = album.cover_url || 'default-cover.jpg';
+			document.getElementById('nowPlayingCover').classList.remove('d-none');
+			
+			document.getElementById('nowPlayingTitle').textContent = album.title;
+			document.getElementById('nowPlayingTitle').classList.remove('d-none');
+			
+			document.getElementById('nowPlayingArtist').textContent = album.artist;
+			document.getElementById('nowPlayingArtist').classList.remove('d-none');
+
+			logPlayHistory(album);
+		}
+
+		function logPlayHistory(album) {
+			const playHistoryList = document.getElementById('playHistoryList');
+
+			const item = document.createElement('li');
+			item.classList.add('list-group-item', 'd-flex', 'align-items-center');
+
+			item.innerHTML = `
+				<img src="${album.cover_url || 'default-cover.jpg'}"
+					class='me-3' style='width:50px;height:auto;' alt="${album.title}">
+				<div>${new Date().toLocaleString()} - ${album.title} by ${album.artist}</div>`;
+			
+			playHistoryList.prepend(item);
+		}
+
+		document.addEventListener('DOMContentLoaded', () => showPage('homePage'));
+    </script>
+
+</body>
+
+</html>
