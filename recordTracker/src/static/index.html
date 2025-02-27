@@ -96,7 +96,7 @@
 
             <!-- Play History -->
             <h3>Play History</h3>
-            <ul class="list-group w-75" id="playHistoryList"></ul>
+        <ul class="list-group" id="playHistoryList"></ul>
         </div>
 
         <!-- Album Collection Page -->
@@ -109,6 +109,7 @@
             </div>
 
             <!-- Album List -->
+            <h3>My Albums</h3>
             <ul class="list-group w-75 mb-4" id="albumList"></ul>
 
             <!-- Add Album Modal -->
@@ -148,8 +149,9 @@
 
     <!-- Custom JavaScript -->
     <script>
-        const API_BASE_URL = "http://localhost:3000"; // Replace with your backend URL
+        const API_BASE_URL = "https://super-duper-invention-7vpvrvwqpg5xhrqwj-3000.app.github.dev"; // Replace with your backend URL
         loadAlbums();
+        loadPlayHistory();
 
         // // Sidebar Toggle
         // document.getElementById("toggle-sidebar").addEventListener("click", function () {
@@ -224,6 +226,7 @@
 			const title = document.getElementById('albumTitle').value.trim();
 			const artist = document.getElementById('artistName').value.trim();
 
+
 			const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(title + ' ' + artist)}&entity=album&limit=1`);
 			const data = await response.json();
 			const coverUrl = data.results[0]?.artworkUrl100.replace('100x100', '600x600') || 'default-cover.jpg';
@@ -238,6 +241,7 @@
 			loadAlbums();
 			bootstrap.Modal.getInstance(document.getElementById('addAlbumModal')).hide();
 		});
+        
 
 		function playAlbum(album) {
 			document.getElementById('defaultNowPlaying').classList.add('d-none');
@@ -256,6 +260,7 @@
 
 		function logPlayHistory(album) {
 			const playHistoryList = document.getElementById('playHistoryList');
+            
 
 			const item = document.createElement('li');
 			item.classList.add('list-group-item', 'd-flex', 'align-items-center');
@@ -267,8 +272,34 @@
 			
 			playHistoryList.prepend(item);
 		}
+        function loadPlayHistory() {
+            const playHistory = [];
+                playHistoryList.innerHTML = "";
+                playHistory.slice(0, 10).forEach(album => {
+                    const item = document.createElement("li");
+                    item.classList.add("list-group-item", "d-flex", "align-items-center");
+                    item.innerHTML = `
+                        <img src="${album.cover}" class="me-3" alt="Album Cover" style="width: 50px; height: 50px;">
+                        <div>
+                            <strong>${album.album}</strong> by ${album.artist}<br>
+                            <small>Played: ${album.timePlayed} | Last Played: ${album.lastPlayed}</small>
+                        </div>
+                    `;
+                    item.addEventListener("click", function () {
+                        document.getElementById("nowPlayingCover").src = album.cover;
+                        document.getElementById("nowPlayingTitle").textContent = album.album;
+                        document.getElementById("nowPlayingArtist").textContent = album.artist;
+                    });
+                    playHistoryList.appendChild(item);
+                });
+            }
+            function addAlbumToCollection(title, artist, coverUrl) {
+                const newAlbum = { cover: coverUrl, album: title, artist: artist, timePlayed: "0h", lastPlayed: "Never" };
+                playHistory.unshift(newAlbum);
+                loadPlayHistory();
+            }
 
-		document.addEventListener('DOMContentLoaded', () => showPage('homePage'));
+		//document.addEventListener('DOMContentLoaded', () => showPage('homePage'));
     </script>
 
 </body>
