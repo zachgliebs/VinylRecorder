@@ -150,157 +150,147 @@
     <!-- Custom JavaScript -->
     <script>
         const API_BASE_URL = "https://super-duper-invention-7vpvrvwqpg5xhrqwj-3000.app.github.dev"; // Replace with your backend URL
-        loadAlbums();
-        loadPlayHistory();
-
-        // // Sidebar Toggle
-        // document.getElementById("toggle-sidebar").addEventListener("click", function () {
-        //     const sidebar = document.getElementById("sidebar");
-        //     const mainContent = document.getElementById("main-content");
-
-        //     sidebar.classList.toggle("active");
-        //     mainContent.classList.toggle("active");
-        // });
-
-        // // Page Navigation
-        // document.getElementById("homeLink").addEventListener("click", () => showPage("homePage"));
-        // document.getElementById("albumCollectionLink").addEventListener("click", () => {
-		// 	showPage("albumCollectionPage");
-		// 	loadAlbums();
-		// });
-
-		// function showPage(pageId) {
-		// 	document.getElementById("homePage").style.display = pageId === "homePage" ? "block" : "none";
-		// 	document.getElementById("albumCollectionPage").style.display = pageId === "albumCollectionPage"
-		// 		? "block"
-		// 		: "none";
-		// }
-
-		// Fetch and display albums
-		async function loadAlbums() {
-			const response = await fetch(`${API_BASE_URL}/albums`);
-			const albums = await response.json();
-
-			const albumList = document.getElementById("albumList");
-			albumList.innerHTML = ""; // Clear existing list
-
-			albums.forEach(album => {
-				const item = document.createElement("li");
-				item.classList.add(
-					'list-group-item',
-					'd-flex',
-					'align-items-center',
-					'justify-content-between'
-				);
-
-				item.innerHTML = `
-					<div class='d-flex align-items-center'>
-						<img src="${album.cover_url || 'default-cover.jpg'}"
-							class='album-cover me-3' alt="${album.title}">
-						<div>${album.title} by ${album.artist}</div> 
-					</div> 
-					<div> 
-						<button	class='btn btn-success btn-sm me-2'>Load</button> 
-						<button	class='btn btn-danger btn-sm'>Delete</button> 
-					</div>`;
-				
-				item.querySelector('.btn-success').addEventListener('click', () => playAlbum(album));
-				
-				item.querySelector('.btn-danger').addEventListener('click', async () => {
-					const response = await fetch(`${API_BASE_URL}/albums/${album.album_id}`, { method: 'DELETE' });
-					
-					if (response.ok) {
-						loadAlbums(); // Reload albums after deletion
-					} else {
-						alert('Failed to delete album.');
-					}
-				});
-
-				albumList.appendChild(item);
-			});
-		}
-
-		document.getElementById('addAlbumForm').addEventListener('submit', async function (event) {
-			event.preventDefault();
-
-			const title = document.getElementById('albumTitle').value.trim();
-			const artist = document.getElementById('artistName').value.trim();
-
-
-			const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(title + ' ' + artist)}&entity=album&limit=1`);
-			const data = await response.json();
-			const coverUrl = data.results[0]?.artworkUrl100.replace('100x100', '600x600') || 'default-cover.jpg';
-
-			await fetch(`${API_BASE_URL}/albums`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ title, artist, cover_url: coverUrl })
-			});
-
-			this.reset();
-			loadAlbums();
-			bootstrap.Modal.getInstance(document.getElementById('addAlbumModal')).hide();
-		});
-        
-
-		function playAlbum(album) {
-			document.getElementById('defaultNowPlaying').classList.add('d-none');
-			
-			document.getElementById('nowPlayingCover').src = album.cover_url || 'default-cover.jpg';
-			document.getElementById('nowPlayingCover').classList.remove('d-none');
-			
-			document.getElementById('nowPlayingTitle').textContent = album.title;
-			document.getElementById('nowPlayingTitle').classList.remove('d-none');
-			
-			document.getElementById('nowPlayingArtist').textContent = album.artist;
-			document.getElementById('nowPlayingArtist').classList.remove('d-none');
-
-			logPlayHistory(album);
-		}
-
-		function logPlayHistory(album) {
-			const playHistoryList = document.getElementById('playHistoryList');
-            
-
-			const item = document.createElement('li');
-			item.classList.add('list-group-item', 'd-flex', 'align-items-center');
-
-			item.innerHTML = `
-				<img src="${album.cover_url || 'default-cover.jpg'}"
-					class='me-3' style='width:50px;height:auto;' alt="${album.title}">
-				<div>${new Date().toLocaleString()} - ${album.title} by ${album.artist}</div>`;
-			
-			playHistoryList.prepend(item);
-		}
-        function loadPlayHistory() {
-            const playHistory = [];
-                playHistoryList.innerHTML = "";
-                playHistory.slice(0, 10).forEach(album => {
-                    const item = document.createElement("li");
-                    item.classList.add("list-group-item", "d-flex", "align-items-center");
-                    item.innerHTML = `
-                        <img src="${album.cover}" class="me-3" alt="Album Cover" style="width: 50px; height: 50px;">
-                        <div>
-                            <strong>${album.album}</strong> by ${album.artist}<br>
-                            <small>Played: ${album.timePlayed} | Last Played: ${album.lastPlayed}</small>
-                        </div>
-                    `;
-                    item.addEventListener("click", function () {
-                        document.getElementById("nowPlayingCover").src = album.cover;
-                        document.getElementById("nowPlayingTitle").textContent = album.album;
-                        document.getElementById("nowPlayingArtist").textContent = album.artist;
-                    });
-                    playHistoryList.appendChild(item);
+    
+        // Fetch and display albums
+        async function loadAlbums() {
+            const response = await fetch(`${API_BASE_URL}/albums`);
+            const albums = await response.json();
+    
+            const albumList = document.getElementById("albumList");
+            albumList.innerHTML = ""; // Clear existing list
+    
+            albums.forEach(album => {
+                const item = document.createElement("li");
+                item.classList.add(
+                    'list-group-item',
+                    'd-flex',
+                    'align-items-center',
+                    'justify-content-between'
+                );
+    
+                item.innerHTML = `
+                    <div class='d-flex align-items-center'>
+                        <img src="${album.cover_url || 'default-cover.jpg'}"
+                            class='album-cover me-3' alt="${album.title}">
+                        <div>${album.title} by ${album.artist}</div> 
+                    </div> 
+                    <div> 
+                        <button class='btn btn-success btn-sm me-2'>Play</button> 
+                        <button class='btn btn-danger btn-sm'>Delete</button> 
+                    </div>`;
+                
+                item.querySelector('.btn-success').addEventListener('click', () => playAlbum(album));
+                
+                item.querySelector('.btn-danger').addEventListener('click', async () => {
+                    const response = await fetch(`${API_BASE_URL}/albums/${album.album_id}`, { method: 'DELETE' });
+                    
+                    if (response.ok) {
+                        loadAlbums(); // Reload albums after deletion
+                    } else {
+                        alert('Failed to delete album.');
+                    }
                 });
-            }
-            function addAlbumToCollection(title, artist, coverUrl) {
-                const newAlbum = { cover: coverUrl, album: title, artist: artist, timePlayed: "0h", lastPlayed: "Never" };
-                playHistory.unshift(newAlbum);
-                loadPlayHistory();
-            }
+    
+                albumList.appendChild(item);
+            });
+        }
+    
+        // Fetch and display play history (last 10 items)
+        async function loadPlayHistory() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/play_history`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
-		//document.addEventListener('DOMContentLoaded', () => showPage('homePage'));
+        const playHistory = await response.json();
+
+        const playHistoryList = document.getElementById("playHistoryList");
+        playHistoryList.innerHTML = ""; // Clear existing list
+
+        playHistory.slice(0, 10).forEach(history => {
+            const playedDate = new Date(history.played_on);
+
+            // Format date as MM/DD/YY
+            const formattedDate = `${(playedDate.getMonth() + 1).toString().padStart(2, '0')}/${playedDate.getDate().toString().padStart(2, '0')}/${playedDate.getFullYear().toString().slice(-2)}`;
+
+            const item = document.createElement("li");
+            item.classList.add("list-group-item", "d-flex", "align-items-center");
+
+            item.innerHTML = `
+                ${formattedDate} - ${history.duration || 'PLAY IN PROGRESS'} - ${history.title} by ${history.artist}
+            `;
+
+            playHistoryList.appendChild(item);
+        });
+    } catch (error) {
+        console.error("Failed to load play history:", error);
+        alert("An error occurred while loading play history.");
+    }
+}
+
+        async function logPlayHistory(album) {
+            const startTime = new Date().toISOString();
+    
+            // Simulate an end time for demonstration purposes (e.g., after 1hr 31min 11sec)
+            const simulatedEndTime = new Date(Date.now() + (1 * 3600 + 31 * 60 + 11) * 1000).toISOString();
+    
+            await fetch(`${API_BASE_URL}/play_history`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ album_id: album.album_id, finished_on: simulatedEndTime }),
+            });
+    
+            loadPlayHistory();
+        }
+    
+        function playAlbum(album) {
+            document.getElementById("defaultNowPlaying").classList.add("d-none");
+    
+            document.getElementById("nowPlayingCover").src = album.cover_url || "default-cover.jpg";
+            document.getElementById("nowPlayingCover").classList.remove("d-none");
+    
+            document.getElementById("nowPlayingTitle").textContent = album.title;
+            document.getElementById("nowPlayingTitle").classList.remove("d-none");
+    
+            document.getElementById("nowPlayingArtist").textContent = album.artist;
+            document.getElementById("nowPlayingArtist").classList.remove("d-none");
+    
+            logPlayHistory(album);
+        }
+    
+        // Add a new album to the collection
+        document.getElementById('addAlbumForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+    
+            const title = document.getElementById('albumTitle').value.trim();
+            const artist = document.getElementById('artistName').value.trim();
+    
+            // Fetch album cover from iTunes API
+            const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(title + ' ' + artist)}&entity=album&limit=1`);
+            const data = await response.json();
+            const coverUrl = data.results[0]?.artworkUrl100.replace('100x100', '600x600') || 'default-cover.jpg';
+    
+            await fetch(`${API_BASE_URL}/albums`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, artist, cover_url: coverUrl })
+            });
+    
+            this.reset();
+            loadAlbums();
+            bootstrap.Modal.getInstance(document.getElementById('addAlbumModal')).hide();
+        });
+    
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAlbums();       // Load albums from the database
+            loadPlayHistory();  // Load last 10 items from play history
+        });
     </script>
+    
+    
 
 </body>
 

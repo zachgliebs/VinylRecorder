@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Row, Sqlite};
 use std::sync::Arc;
 use tower_http::services::ServeDir;
+use chrono::{NaiveDateTime, Duration};
 
 #[tokio::main]
 async fn main() {
@@ -30,8 +31,8 @@ async fn main() {
     let app = Router::new()
         .route("/albums", post(add_album).get(get_albums))
         .route("/albums/:album_id", delete(delete_album))
-        .route("/albums/barcode/:barcode", get(get_album_by_barcode)) // New route for fetching albums by barcode
-        .route("/play_history/:album_id", get(get_play_history))
+        //.route("/albums/barcode/:barcode", get(get_album_by_barcode))
+        .route("/play_history", get(get_all_play_history).post(log_play)) // Play history routes
         .nest_service("/", ServeDir::new("src/static"))
         .with_state(app_state);
 
@@ -48,34 +49,35 @@ struct AppState {
 }
 
 async fn create_schema(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
-    println!("Creating albums table...");
+    println!("Creating albums and play_history tables...");
     
-	sqlx::query(
-		"CREATE TABLE IF NOT EXISTS albums (
-			album_id INTEGER PRIMARY KEY AUTOINCREMENT,
-			title TEXT NOT NULL,
-			artist TEXT NOT NULL,
-			cover_url TEXT DEFAULT 'default-cover.jpg',
-			barcode TEXT UNIQUE, -- Add barcode column
-			created_on DATETIME DEFAULT (datetime('now', 'localtime'))
-		);"
-	)
-	.execute(pool)
-	.await?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS albums (
+            album_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            cover_url TEXT DEFAULT 'default-cover.jpg',
+            barcode TEXT UNIQUE,
+            created_on DATETIME DEFAULT (datetime('now', 'localtime'))
+        );"
+    )
+    .execute(pool)
+    .await?;
 
-	sqlx::query(
-		"CREATE TABLE IF NOT EXISTS play_history (
-			play_id INTEGER PRIMARY KEY AUTOINCREMENT,
-			album_id INTEGER NOT NULL,
-			played_on DATETIME DEFAULT (datetime('now', 'localtime')),
-			FOREIGN KEY (album_id) REFERENCES albums (album_id) ON DELETE CASCADE
-		);"
-	)
-	.execute(pool)
-	.await?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS play_history (
+            play_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    		album_id INTEGER NOT NULL,
+    		played_on DATETIME DEFAULT (datetime('now', 'localtime')),
+    		finished_on DATETIME DEFAULT NULL,
+    		FOREIGN KEY (album_id) REFERENCES albums (album_id) ON DELETE CASCADE
+        );"
+    )
+    .execute(pool)
+    .await?;
 
-	println!("Schema creation complete.");
-	return Ok(());
+    println!("Schema creation complete.");
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -83,7 +85,7 @@ struct AddAlbumRequest {
     title: String,
     artist: String,
     cover_url: Option<String>,
-    barcode: Option<String>, // Add barcode field
+    barcode: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -106,7 +108,7 @@ async fn add_album(
 	.bind(&payload.title)
 	.bind(&payload.artist)
 	.bind(&cover_url)
-	.bind(&payload.barcode) // Bind barcode value
+	.bind(&payload.barcode)
 	.execute(&*state.pool)
 	.await
 	.map_err(|e| {
@@ -151,61 +153,91 @@ async fn delete_album(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    Ok(StatusCode::NO_CONTENT) // Return 204 No Content on success
+    Ok(StatusCode::NO_CONTENT)
 }
 
-// New function to fetch an album by its barcode
-async fn get_album_by_barcode(
-    State(state): State<AppState>,
-    Path(barcode): Path<String>,
-) -> Result<Json<AlbumResponse>, StatusCode> {
-	let row = sqlx::query("SELECT album_id, title, artist, cover_url FROM albums WHERE barcode = ?1")
-	    .bind(barcode)
-	    .fetch_optional(&*state.pool)
-	    .await
-	    .map_err(|e| {
-	        eprintln!("Failed to fetch album by barcode: {}", e);
-	        StatusCode::INTERNAL_SERVER_ERROR
-	    })?;
-
-	if let Some(row) = row {
-	    let album = AlbumResponse {
-	        album_id: row.get("album_id"),
-	        title: row.get("title"),
-	        artist: row.get("artist"),
-	        cover_url: row.get::<Option<String>, _>("cover_url").unwrap_or_else(|| "default-cover.jpg".to_string()),
-	    };
-	    Ok(Json(album))
-	} else {
-	    Err(StatusCode::NOT_FOUND)
-	}
+#[derive(Deserialize)]
+struct LogPlayRequest {
+    album_id: i64,
+    finished_on: Option<String>, // Optional end time
 }
 
 #[derive(Serialize)]
-struct PlayHistoryResponse {
-	play_id: i64,
-	played_on: String,
+struct PlayHistoryItem {
+    album_id: i64,
+    title: String,
+    artist: String,
+    cover_url: String,
+    played_on: String,
+    duration: Option<String>, // Duration in Xhr, Ymin, Zsec format
 }
 
-async fn get_play_history(
+async fn log_play(
 	State(state): State<AppState>,
-	Path(album_id): Path<i64>,
-) -> Result<Json<Vec<PlayHistoryResponse>>, StatusCode> {
-	let rows = sqlx::query("SELECT play_id, played_on FROM play_history WHERE album_id = ?1")
-	    .bind(album_id)
-	    .fetch_all(&*state.pool)
-	    .await
-	    .map_err(|e| {
-	        eprintln!("Failed to fetch play history: {}", e);
-	        StatusCode::INTERNAL_SERVER_ERROR
-	    })?;
+	Json(payload): Json<LogPlayRequest>,
+) -> Result<StatusCode, StatusCode> {
+	sqlx::query(
+		"INSERT INTO play_history (album_id, finished_on) VALUES (?1, ?2)"
+	)
+	.bind(payload.album_id)
+	.bind(payload.finished_on)
+	.execute(&*state.pool)
+	.await
+	.map_err(|e| {
+	    eprintln!("Failed to log play history: {}", e);
+	    StatusCode::INTERNAL_SERVER_ERROR
+	})?;
 
-	let history = rows.into_iter()
-	    .map(|row| PlayHistoryResponse {
-	        play_id: row.get("play_id"),
-	        played_on: row.get("played_on"),
-	    })
-	    .collect();
+	return Ok(StatusCode::CREATED);
+}
 
-	return Ok(Json(history));
+async fn get_all_play_history(State(state): State<AppState>) -> Result<Json<Vec<PlayHistoryItem>>, StatusCode> {
+    let rows = sqlx::query(
+        "SELECT ph.album_id, a.title, a.artist, a.cover_url, ph.played_on, ph.finished_on 
+         FROM play_history ph 
+         JOIN albums a ON ph.album_id = a.album_id 
+         ORDER BY ph.played_on DESC"
+    )
+    .fetch_all(&*state.pool)
+    .await
+    .map_err(|e| {
+        eprintln!("Failed to fetch play history: {}", e); // Log the error
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if rows.is_empty() {
+        return Ok(Json(vec![])); // Return an empty array if no data exists
+    }
+
+    let history = rows.into_iter().map(|row| {
+        let played_on: String = row.get("played_on");
+        let finished_on: Option<String> = row.get("finished_on");
+
+        // Calculate duration if finished_on is present
+        let duration = if let Some(finished) = &finished_on {
+            let start = chrono::NaiveDateTime::parse_from_str(&played_on, "%Y-%m-%d %H:%M:%S").unwrap();
+            let end = chrono::NaiveDateTime::parse_from_str(finished, "%Y-%m-%d %H:%M:%S").unwrap();
+            let duration_secs = (end - start).num_seconds();
+            
+            Some(format!(
+                "{}hr, {}min, {}sec",
+                duration_secs / 3600,
+                (duration_secs % 3600) / 60,
+                duration_secs % 60
+            ))
+        } else {
+            None
+        };
+
+        PlayHistoryItem {
+            album_id: row.get("album_id"),
+            title: row.get("title"),
+            artist: row.get("artist"),
+            cover_url: row.get::<Option<String>, _>("cover_url").unwrap_or_else(|| "default-cover.jpg".to_string()),
+            played_on,
+            duration,
+        }
+    }).collect();
+
+    Ok(Json(history))
 }
