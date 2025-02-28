@@ -152,6 +152,9 @@
        const API_BASE_URL = "https://super-duper-invention-7vpvrvwqpg5xhrqwj-3000.app.github.dev"; // Replace with your backend URL
 let currentPlayingAlbumId = null; // Track the currently playing album's ID
 
+
+
+
 async function loadPlayHistory() {
     try {
         const response = await fetch(`${API_BASE_URL}/play_history`);
@@ -219,6 +222,7 @@ async function logPlayHistory(album) {
 
 
 function playAlbum(album) {
+    loadPlayHistory();
     document.getElementById("defaultNowPlaying").classList.add("d-none");
 
     document.getElementById("nowPlayingCover").src = album.cover_url || "default-cover.jpg";
@@ -229,8 +233,10 @@ function playAlbum(album) {
 
     document.getElementById("nowPlayingArtist").textContent = album.artist;
     document.getElementById("nowPlayingArtist").classList.remove("d-none");
-
+    
     logPlayHistory(album); // Log this album as playing
+    loadPlayHistory();
+    
 }
 
 async function loadAlbums() {
@@ -308,6 +314,21 @@ document.getElementById('addAlbumForm').addEventListener('submit', async functio
 document.addEventListener('DOMContentLoaded', () => {
     loadAlbums();       // Load albums from the database
     loadPlayHistory();  // Load last 10 items from play history
+    async function loadNowPlaying() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/now_playing`);
+        const album = await response.json();
+
+        if (album) {
+            playAlbum(album);
+        }
+    } catch (error) {
+        console.error("Failed to load now playing:", error);
+    }
+}
+
+loadNowPlaying();
+
 });
 
     </script>
