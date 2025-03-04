@@ -60,21 +60,22 @@
 
 <body>
     <!-- Side Navbar -->
-    <!-- <div id="sidebar">
+    <div id="sidebar">
         <h4 class="text-center py-3">Menu</h4>
         <ul class="nav flex-column px-3">
-            <li class="nav-item"><a href="#" class="nav-link" id="homeLink">Home</a></li>
+            <li class="nav-item"><a href="index.html" class="nav-link" id="homeLink" aria-current="true">Home</a></li>
             <li class="nav-item"><a href="#" class="nav-link" id="albumCollectionLink">Album Collection</a></li>
+            <li class="nav-item"><a href="leaderboard.html" class="nav-link" id="leaderboardStats"  >Leaderboard and Stats</a></li>
         </ul>
-    </div> -->
+    </div>
 
     <!-- Main Content -->
     <div id="main-content" class="container-fluid vh-100 d-flex flex-column">
         <!-- Navbar -->
         <nav class="navbar navbar-dark bg-dark mb-4">
-            <!-- <button id="toggle-sidebar" class="btn btn-outline-light me-2">
+            <button id="toggle-sidebar" class="btn btn-outline-light me-2">
                 <i class="fas fa-bars"></i>
-            </button> -->
+            </button>
             <span class="navbar-brand mb-0 h1">Record Tracker</span>
         </nav>
 
@@ -151,7 +152,14 @@
     <script>
        const API_BASE_URL = "https://super-duper-invention-7vpvrvwqpg5xhrqwj-3000.app.github.dev"; // Replace with your backend URL
 let currentPlayingAlbumId = null; // Track the currently playing album's ID
+ // Sidebar Toggle
+        document.getElementById("toggle-sidebar").addEventListener("click", function () {
+            const sidebar = document.getElementById("sidebar");
+            const mainContent = document.getElementById("main-content");
 
+            sidebar.classList.toggle("active");
+            mainContent.classList.toggle("active");
+        });
 
 
 

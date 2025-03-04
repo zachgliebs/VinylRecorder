@@ -1,13 +1,14 @@
 use axum::{
     Router,
     extract::{Json, Path, State},
-    http::StatusCode,
+    http::{StatusCode, Method},
     routing::{delete, get, post},
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Row, Sqlite, sqlite::SqlitePoolOptions};
 use std::sync::Arc;
 use tower_http::services::ServeDir;
+use tower_http::cors::{CorsLayer, Any};
 use chrono::Utc;
 
 #[tokio::main]
@@ -30,11 +31,18 @@ async fn main() {
         pool: Arc::new(pool),
     };
 
+    // Configure CORS to allow requests from any origin
+    let cors = CorsLayer::new()
+        .allow_origin(Any) // Allow all origins
+        .allow_methods([Method::GET, Method::POST, Method::DELETE]) // Allow specific HTTP methods
+        .allow_headers(Any); // Allow all headers
+
     let app = Router::new()
         .route("/albums", post(add_album).get(get_albums))
         .route("/albums/:album_id", delete(delete_album))
         .route("/play_history", get(get_all_play_history).post(log_play))
-        .nest_service("/", ServeDir::new("src/static"))
+        .nest_service("/", ServeDir::new("src/static").append_index_html_on_directories(true)) // Serve static files correctly
+        .layer(cors) // Apply CORS middleware
         .with_state(app_state);
 
     println!("Server running on http://localhost:3000");
@@ -147,8 +155,8 @@ async fn delete_album(
 #[derive(Deserialize)]
 struct LogPlayRequest {
     album_id: i64,
+    played_on: Option<String>, // Added this field
     finished_on: Option<String>,
-    played_on: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -158,7 +166,6 @@ struct PlayHistoryItem {
     artist: String,
     cover_url: String,
     played_on: String,
-    duration: Option<String>,
 }
 
 async fn log_play(
@@ -182,7 +189,7 @@ async fn get_all_play_history(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<PlayHistoryItem>>, StatusCode> {
     let rows = sqlx::query(
-        "SELECT ph.album_id, a.title, a.artist, a.cover_url, ph.played_on, ph.finished_on 
+        "SELECT ph.album_id, a.title, a.artist, a.cover_url, ph.played_on 
          FROM play_history ph 
          JOIN albums a ON ph.album_id = a.album_id 
          ORDER BY ph.played_on DESC",
@@ -196,47 +203,14 @@ async fn get_all_play_history(
 
     let history = rows
         .into_iter()
-        .map(|row| {
-            let played_on: String = row.get("played_on");
-            let finished_on: Option<String> = row.try_get("finished_on").ok();
-
-
-            // Parse timestamps
-            let played_on_parsed = chrono::DateTime::parse_from_rfc3339(&played_on).ok();
-            let finished_on_parsed =chrono::DateTime::parse_from_rfc3339(&finished_on).ok();
-                .as_ref()
-                .and_then(|f| chrono::DateTime::parse_from_rfc3339(f).ok());
-
-            // Calculate duration if finished_on is present
-            let duration = match (played_on_parsed, finished_on_parsed) {
-                (Some(start), Some(end)) if end > start => {
-                    let duration_secs: i64 = (end - start).num_seconds();
-                    Some(format!(
-                        "{}hr, {}min, {}sec",
-                        duration_secs / 3600,
-                        (duration_secs % 3600) / 60,
-                        duration_secs % 60
-                    ))
-                }
-                (Some(_), None) => Some("PRESENT".to_string()), // If `finished_on` is NULL
-                _ => None, // Invalid data case
-            };
-            
-            
-
-            PlayHistoryItem {
-                album_id: row.get("album_id"),
-                title: row.get("title"),
-                artist: row.get("artist"),
-                cover_url: row
-                    .get::<Option<String>, _>("cover_url")
-                    .unwrap_or_else(|| "default-cover.jpg".to_string()),
-                played_on,
-                duration,
-            }
+        .map(|row| PlayHistoryItem {
+            album_id: row.get("album_id"),
+            title: row.get("title"),
+            artist: row.get("artist"),
+            cover_url: row.get::<Option<String>, _>("cover_url").unwrap_or_else(|| "default-cover.jpg".to_string()),
+            played_on: row.get("played_on"),
         })
         .collect();
 
     Ok(Json(history))
-
 }
