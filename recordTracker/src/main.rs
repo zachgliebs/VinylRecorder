@@ -33,7 +33,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/albums", post(add_album).get(get_albums))
-        .route("/albums/:album_id", delete(delete_album))
+        .route("/albums/:album_id", get(get_album).delete(delete_album))
         .route("/albums/barcode/:barcode", get(get_album_by_barcode)) // New route for fetching albums by barcode
         .route("/play_history", get(get_play_history).post(add_play_entry))
         .route("/now_playing", get(get_now_playing))
@@ -144,6 +144,30 @@ async fn get_albums(State(state): State<AppState>) -> Result<Json<Vec<AlbumRespo
         .collect();
 
     return Ok(Json(albums));
+}
+
+async fn get_album(
+    State(state): State<AppState>,
+    Path(album_id): Path<i64>
+) -> Result<Json<AlbumResponse>, StatusCode> {
+    let row = sqlx::query("SELECT album_id, title, artist, cover_url FROM albums WHERE album_id = ?1 LIMIT 1")
+        .bind(album_id)
+        .fetch_optional(&*state.pool)
+        .await;
+
+        if let Ok(Some(row)) = row {
+            let album = AlbumResponse {
+                album_id: row.get("album_id"),
+                title: row.get("title"),
+                artist: row.get("artist"),
+                cover_url: row
+                    .get::<Option<String>, _>("cover_url")
+                    .unwrap_or_else(|| "default-cover.jpg".to_string()),
+            };
+            Ok(Json(album))
+        } else {
+            Err(StatusCode::NOT_FOUND)
+        }
 }
 
 async fn delete_album(
