@@ -73,6 +73,7 @@ async fn create_schema(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
 			play_id INTEGER PRIMARY KEY AUTOINCREMENT,
 			album_id INTEGER NOT NULL,
 			played_on DATETIME DEFAULT (datetime('now', 'localtime')),
+            finished_on DATETIME DEFAULT NULL,
 			FOREIGN KEY (album_id) REFERENCES albums (album_id) ON DELETE CASCADE
 		);",
     )
@@ -252,7 +253,6 @@ async fn get_play_history(
     Ok(Json(rows))
 }
 
-
 async fn add_play_entry(
     State(state): State<AppState>,
     Json(payload): Json<Value>, // Accept dynamic JSON payload
@@ -260,14 +260,39 @@ async fn add_play_entry(
     if let Some(album_id) = payload.get("album_id").and_then(|v| v.as_i64()) {
         println!("Received album_id: {}", album_id);
 
+        let mut tx = state.pool.begin().await.map_err(|e| {
+            eprintln!("Failed to start transaction: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        // Update the previous play entry's `finished_on` timestamp if NULL
+        sqlx::query!(
+            "UPDATE play_history 
+            SET finished_on = datetime('now', 'localtime') 
+            WHERE play_id = (SELECT MAX(play_id) FROM play_history) 
+            AND finished_on IS NULL"
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to update previous play entry: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        // Insert the new play entry
         sqlx::query!(
             "INSERT INTO play_history (album_id) VALUES (?1)",
             album_id
         )
-        .execute(&*state.pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| {
             eprintln!("Failed to insert play entry: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        tx.commit().await.map_err(|e| {
+            eprintln!("Failed to commit transaction: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -277,6 +302,7 @@ async fn add_play_entry(
         Err(StatusCode::UNPROCESSABLE_ENTITY)
     }
 }
+
 
 
 #[derive(Serialize)]
